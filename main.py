@@ -60,7 +60,7 @@ class Main(object):
         self.qp: Queue = Queue()
 
         self.saveQueue = MPQueue()
-        self.dbsession = DBSession(qp=self.saveQueue, path=pathlib.Path(path))
+        self.dbsession = DBSession(qp=self.saveQueue, path=pathlib.Path(path), buffersize=1000, timeout=60)
         self.dbsession.start()
 
         for s in port:
@@ -77,9 +77,11 @@ class Main(object):
                     break
 
     def start(self):
+        logger.info('*** NMEA Recorder startup')
         while True:
             try:
                 raw: bytes = self.qp.get()
+                # print(raw)
             except (KeyboardInterrupt,) as e:
                 break
             else:

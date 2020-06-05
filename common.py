@@ -14,9 +14,3 @@ class Record(object):
     passed: float  # delta secs from prev
     at: dt  # 受信日時
 
-@dataclass()
-class Package(object):
-    at: dt
-    record: List[Record]
-
-
