@@ -98,8 +98,8 @@ class DBSession(Thread):
 
         while True:
 
-            if Common.Retrieve.start:
-                Common.Retrieve.start = False  # notice!
+            if Common.Retrieve.collector:
+                Common.Retrieve.collector = False  # notice!
                 save()
                 Common.Retrieve.ready.set()  # notice!
                 pass

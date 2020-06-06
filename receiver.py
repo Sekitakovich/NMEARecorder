@@ -1,21 +1,20 @@
 import serial
-from threading import Thread, Lock
-from queue import Queue
 from loguru import logger
+from multiprocessing import Process, Queue
 
+class Receiver(Process):
 
-class Receiver(Thread):
-
-    def __init__(self, *, port: str, baudrate: int):
+    def __init__(self, *, port: str, baudrate: int, qp: Queue):
 
         super().__init__()
         self.daemon = True
+        self.name = 'Serial'
 
         self.port = port
         self.baudrate = baudrate
 
         self.isReady = False
-        self.qp = Queue()
+        self.qp = qp
         try:
             self.sp = serial.Serial(port=port, baudrate=baudrate)
         except (OSError,) as e:
@@ -24,6 +23,7 @@ class Receiver(Thread):
             self.isReady = True
 
     def run(self) -> None:
+        logger.debug('Receiver start (%d)' % self.pid)
         try:
             while self.isReady:
                 data = self.sp.readline()

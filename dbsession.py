@@ -42,6 +42,9 @@ class DBSession(Process):
                         "nmea"	TEXT NOT NULL DEFAULT \'\' \
                     )'
 
+    def __del__(self):
+        self.append(at=self.lastat)
+
     def create(self, *, cursor: sqlite3.Cursor):
         cursor.execute(self.schema)
 
@@ -68,6 +71,7 @@ class DBSession(Process):
 
 
     def run(self) -> None:
+        logger.debug('DBSession start (%d)' % self.pid)
         while True:
             try:
                 raw: bytes = self.qp.get(timeout=self.timeout)
@@ -77,9 +81,9 @@ class DBSession(Process):
                     logger.debug('!!! saved %d cause timeout' % len(self.buffer))
                     self.append(at=self.lastat)
                 self.lastat = dt.now()
-            except KeyboardInterrupt as e:
-                self.append(at=self.lastat)
-                break
+            # except KeyboardInterrupt as e:
+            #     self.append(at=self.lastat)
+            #     break
             else:
                 now = dt.now()
                 if now.day != self.lastat.day:
