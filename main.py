@@ -8,8 +8,8 @@ from queue import Queue
 from loguru import logger
 import pathlib
 
-from common import SerialPort, Record
-from dbsession import DBSession
+from common import SerialPort
+from dbsession import DBSession, Record
 
 
 class Receiver(Thread):

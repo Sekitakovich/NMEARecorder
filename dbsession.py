@@ -5,9 +5,16 @@ import pathlib
 import sqlite3
 from multiprocessing import Process, Queue as MPQueue, Lock
 from queue import Empty
+from dataclasses import dataclass
 from loguru import logger
 
-from common import SerialPort, Record
+from common import SerialPort
+
+@dataclass()
+class Record(object):
+    sentence: bytes  # NMEA asis
+    passed: float  # delta secs from prev
+    at: dt  # 受信日時
 
 
 class DBSession(Process):
