@@ -1,3 +1,4 @@
+import time
 from datetime import datetime as dt
 from typing import List
 from contextlib import closing
@@ -8,23 +9,22 @@ from queue import Empty
 from dataclasses import dataclass
 from loguru import logger
 
-from common import SerialPort
 
 @dataclass()
 class Record(object):
     sentence: bytes  # NMEA asis
-    passed: float  # delta secs from prev
+    # passed: float  # delta secs from prev
     at: dt  # 受信日時
 
 
 class DBSession(Process):
-    def __init__(self, *, path: pathlib.Path, qp: MPQueue, timeout: int = 5, buffersize: int = 32):
+    def __init__(self, *, path: str, timeout: int = 5, buffersize: int = 32):
         super().__init__()
         self.daemon = True
         self.name = 'SQLite'
 
-        self.qp = qp
-        self.path = path  # path for *.db
+        self.qp: MPQueue = MPQueue()
+        self.path = pathlib.Path(path)  # path for *.db
         self.nameformat: str = '%04d-%02d-%02d.db'
         self.dateformat: str = '%Y-%m-%d %H:%M:%S.%f'
         self.locker = Lock()
@@ -49,19 +49,23 @@ class DBSession(Process):
         with self.locker:  # 念の為
             rows = self.buffer.copy()
             self.buffer.clear()
+            passed = (at-self.lastat).total_seconds()
             name = self.nameformat % (at.year, at.month, at.day)
             file = self.path / name  # pathlib
             exists = file.exists()
             with closing(sqlite3.connect(str(file))) as db:
+                ts = time.time()
                 cursor = db.cursor()
                 if exists is False:
                     self.create(cursor=cursor)
                 for ooo in rows:
                     query = 'insert into sentence(at,ds,nmea) values(?,?,?)'
-                    cursor.execute(query, [ooo.at.strftime(self.dateformat), ooo.passed, ooo.sentence])
-                logger.debug('+++ %d records were saved to %s' % (len(rows), file))
+                    cursor.execute(query, [ooo.at.strftime(self.dateformat), passed, ooo.sentence])
                 cursor.close()
                 db.commit()  # never forget
+                te = time.time()
+                logger.debug('+++ %d records were saved to %s in %f' % (len(rows), file,(te-ts)))
+
 
     def run(self) -> None:
         while True:
@@ -75,7 +79,6 @@ class DBSession(Process):
                 self.lastat = dt.now()
             except KeyboardInterrupt as e:
                 self.append(at=self.lastat)
-                logger.error(e)
                 break
             else:
                 now = dt.now()
@@ -83,10 +86,9 @@ class DBSession(Process):
                     self.append(at=self.lastat)
                     logger.debug('just in today')
 
-                record = Record(sentence=raw, at=now, passed=(now - self.lastat).total_seconds())
+                record = Record(sentence=raw, at=now)
                 self.buffer.append(record)
-                if len(self.buffer) == self.buffersize:
+                if len(self.buffer) >= self.buffersize:
                     self.append(at=now)
 
                 self.lastat = now
-
