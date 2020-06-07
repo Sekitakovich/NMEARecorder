@@ -10,11 +10,14 @@ import os
 import psutil
 from dataclasses import dataclass, asdict
 import json
+from functools import reduce
+from operator import xor
 
 from receiver import Receiver
 from dbsession import DBSession
 from mc import fromUDP
 from websocketServer import WebsocketServer
+from gps import GPS
 
 
 @dataclass()
@@ -78,31 +81,58 @@ class Main(responder.API):
         for k, v in self.ppp.items():
             v.start()
 
+        self.g = GPS()
+
         self.ws = WebsocketServer(debug=True)
         self.add_route('/ws', self.ws.wsserver, websocket=True)
 
         self.run(address='0.0.0.0', port=http)
 
     def collector(self):
-        while True:
-            try:
-                raw: bytes = self.t.qp.get()
-            except (KeyboardInterrupt,) as e:
-                break
-            else:
-                self.dbsession.qp.put(raw)
-                # self.ws.bc(message=raw.decode())
+        loop: bool = True
+        try:
+            while loop:
+                try:
+                    raw: bytes = self.t.qp.get()
+                except (KeyboardInterrupt,) as e:
+                    break
+                else:
+                    self.dbsession.qp.put(raw)
+
+                    part = raw.split(b'*')
+                    if len(part) > 1:
+                        main = part[0][1:]
+                        csum = int(part[1][:2], 16)
+                        calc = reduce(xor, main, 0)
+                        if calc != csum:
+                            logger.error('!!! bad checksum')
+                        else:
+                            item = main.split(b',')
+                            symbol = item[0]
+                            prefix = symbol[0:2]
+                            suffix = symbol[2:5]
+                            if prefix == b'GP':
+                                if suffix == b'RMC':
+                                    location = self.g.get(item=item)
+                                    print(location)
+
+        except KeyboardInterrupt as e:
+            loop = False
 
     def patrol(self):
-        while True:
-            time.sleep(5)
-            stats = {'type': 'stats', 'info': {}}
-            logger.info('--------------------------------------------------------------------')
-            for k, v in self.ppp.items():
-                logger.info('%s: %s' % (k, v.stats))
-                stats['info'][k] = asdict(v.stats)
+        loop: bool = True
+        try:
+            while loop:
+                time.sleep(5)
+                stats = {'type': 'stats', 'info': {}}
+                logger.info('--------------------------------------------------------------------')
+                for k, v in self.ppp.items():
+                    logger.info('%s: %s' % (k, v.stats))
+                    stats['info'][k] = asdict(v.stats)
 
-            self.ws.bc(message='%s' % json.dumps(stats, indent=2))
+                self.ws.bc(message='%s' % json.dumps(stats, indent=2))
+        except KeyboardInterrupt as e:
+            loop = False
 
 
 if __name__ == '__main__':

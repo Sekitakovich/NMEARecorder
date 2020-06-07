@@ -81,9 +81,9 @@ class DBSession(Process):
                     logger.debug('!!! saved %d cause timeout' % len(self.buffer))
                     self.append(at=self.lastat)
                 self.lastat = dt.now()
-            # except KeyboardInterrupt as e:
-            #     self.append(at=self.lastat)
-            #     break
+            except KeyboardInterrupt as e:
+                self.append(at=self.lastat)
+                break
             else:
                 now = dt.now()
                 if now.day != self.lastat.day:

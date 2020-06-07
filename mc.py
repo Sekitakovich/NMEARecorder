@@ -1,6 +1,8 @@
 from contextlib import closing
 import socket
 from multiprocessing import Process, Queue
+from functools import reduce
+from operator import xor
 from loguru import logger
 
 
@@ -13,6 +15,15 @@ class fromUDP(Process):
         self.mcip = mcip
         self.mcport = mcport
         self.quePoint = quePoint
+
+    # def cook(self, *, data: bytes):
+    #     part = data.split(b'*')
+    #     main = part[0][1:]
+    #     if len(part) > 1:
+    #         csum = int(part[1][:2], 16)
+    #         calc = reduce(xor, main, 0)
+    #         if calc != csum:
+    #             logger.error('!!! bad checksum')
 
     def run(self) -> None:
         logger.debug('fromUDP (%d)' % self.pid)
@@ -28,6 +39,7 @@ class fromUDP(Process):
                 while run:
                     udpPacket, ipv4 = sock.recvfrom(bufferSize)
                     self.quePoint.put(udpPacket)
+                    # self.cook(data=udpPacket)
         except (socket.error, KeyboardInterrupt) as e:
             run = False
             logger.critical(e)
