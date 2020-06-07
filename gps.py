@@ -13,7 +13,7 @@ class Location(object):
     ew: str = ''
     sog: float = 0.0
     hdg: float = 0.0
-    at: dt = dt.now()
+    at: str = ''
     valid: bool = False
 
 
@@ -23,6 +23,8 @@ class GPS(object):
         self.location = Location()
         self.isValid: bool = True
         self.counter: int = 0
+
+        self.dateformat: str = '%Y-%m-%d %H:%M:%S.%f'
 
     def convertLatLng(self, *, src: float) -> float:
         val = math.modf(src / 100)
@@ -42,7 +44,7 @@ class GPS(object):
                 self.location.ew = item[6].decode() if item[6] else ''
                 self.location.sog = float(item[7]) if item[7] else 0.0
                 self.location.hdg = float(item[8]) if item[8] else 0.0
-                self.location.at = dt.now()
+                self.location.at = dt.now().strftime(self.dateformat)
                 self.counter += 1
 
                 if self.isValid:

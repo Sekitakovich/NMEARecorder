@@ -11,6 +11,7 @@ from dataclasses import dataclass, asdict
 import json
 from functools import reduce
 from operator import xor
+from datetime import datetime as dt
 
 from receiver import Receiver
 from dbsession import DBSession
@@ -34,6 +35,9 @@ class Main(responder.API):
         logger.info('*** NMEA Recorder startup (%d)' % pid)
 
         self.ready: bool = True
+        self.g = GPS()
+        self.ws = WebsocketServer(debug=True)
+
         self.qp = Queue()
 
         self.dbsession = DBSession(path=pathlib.Path(path), buffersize=bs, timeout=to)
@@ -41,10 +45,10 @@ class Main(responder.API):
         self.process[self.dbsession.name] = self.dbsession.pid
         self.ppp[self.dbsession.name] = Patrol(pid=self.dbsession.pid)
 
-        self.t = Receiver(port=port, baudrate=baudrate, qp=self.qp)
-        self.t.start()
-        self.process[self.t.name] = self.t.pid
-        self.ppp[self.t.name] = Patrol(pid=self.t.pid)
+        self.receiver = Receiver(port=port, baudrate=baudrate, qp=self.qp)
+        self.receiver.start()
+        self.process[self.receiver.name] = self.receiver.pid
+        self.ppp[self.receiver.name] = Patrol(pid=self.receiver.pid)
 
         self.mc = fromUDP(quePoint=self.qp, mcip='239.192.0.1', mcport=60001)
         self.mc.start()
@@ -59,19 +63,35 @@ class Main(responder.API):
         for k, v in self.ppp.items():
             v.start()
 
-        self.g = GPS()
-
-        self.ws = WebsocketServer(debug=True)
         self.add_route('/ws', self.ws.wsserver, websocket=True)
+        self.add_route('/', self.top)
+        self.add_route('/main.js', self.mainJS)
+        self.add_route('/classes.js', self.classes)
 
+        self.add_event_handler('shutdown', self.cleanup)
         self.run(address='0.0.0.0', port=http)
+
+    async def cleanup(self):
+        self.dbsession.join()
+        self.receiver.join()
+        self.mc.join()
+        logger.debug('... OK! shutdown')
+
+    def top(self, req: responder.Request, resp: responder.Response):
+        resp.content = self.template('index.html')
+
+    def classes(self, req: responder.Request, resp: responder.Response):
+        resp.content = self.template('classes.js')
+
+    def mainJS(self, req: responder.Request, resp: responder.Response):
+        resp.content = self.template('main.js')
 
     def collector(self):
         loop: bool = True
         try:
             while loop:
                 try:
-                    raw: bytes = self.t.qp.get()
+                    raw: bytes = self.receiver.qp.get()
                 except (KeyboardInterrupt,) as e:
                     break
                 else:
@@ -92,6 +112,8 @@ class Main(responder.API):
                             if prefix == b'GP':
                                 if suffix == b'RMC':
                                     location = self.g.get(item=item)
+                                    ooo = {'type': 'location', 'info': asdict(location)}
+                                    self.ws.broadcast(message=json.dumps(ooo))
                                     if location.valid:
                                         print(location)
 
@@ -104,12 +126,12 @@ class Main(responder.API):
             while loop:
                 time.sleep(5)
                 stats = {'type': 'stats', 'info': {}}
-                logger.info('--------------------------------------------------------------------')
+                # logger.info('--------------------------------------------------------------------')
                 for k, v in self.ppp.items():
-                    logger.info('%s: %s' % (k, v.stats))
                     stats['info'][k] = asdict(v.stats)
 
-                self.ws.bc(message='%s' % json.dumps(stats, indent=2))
+                # logger.info(stats)
+                self.ws.broadcast(message='%s' % json.dumps(stats, indent=2))
         except KeyboardInterrupt as e:
             loop = False
 
@@ -118,7 +140,7 @@ if __name__ == '__main__':
 
     portDefault: str = '/dev/ttyACM0:9600'
     toDefault: int = 5
-    bsDefault: int = 100
+    bsDefault: int = 2500
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--port', help='name:baudrate of port', default=portDefault)

@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+    <script type="text/javascript" src="../static/jquery-3.5.0.min.js"></script>
+    <link rel="stylesheet" href="../static/leaflet/leaflet.css">
+    <script type="text/javascript" src="../static/leaflet/leaflet.js"></script>
+    <script type="text/javascript" src="../static/leaflet-grayscale-master/TileLayer.Grayscale.js"></script>
+    <script type="text/javascript" src="../static/js/leaflet.rotatedMarker.js"></script>
+    <script type="text/javascript" src="../static/Leaflet.MovingMarker-master/MovingMarker.js"></script>
+    <script type="text/javascript" src="../static/leaflet.bouncemarker-master/bouncemarker.js"></script>
+    <script type="text/javascript" src="../static/reconnecting-websocket-master/reconnecting-websocket.js"></script>
+    <script type="text/javascript" src="../static/gauge.min.js"></script>
+    <script type="text/javascript" src="main.js"></script>
+    <script type="text/javascript" src="classes.js"></script>
+    <style>
+        .top {
+            display: flex;
+            border: black solid 1px;
+        }
+
+        .map {
+            width: 640px;
+            height: 640px;
+        }
+
+        .console {
+            padding: 4px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .meter {
+            width: 256px;
+            height: 128px;
+        }
+
+        @keyframes fade {
+            from {
+                opacity: 0.5;
+            }
+        }
+
+        .tako {
+            animation: fade 0.5s infinite alternate;
+        }
+    </style>
+</head>
+<body>
+<div id="top" class="top">
+    <div id="map" class="map"></div>
+    <div id="console" class="console">
+        <canvas id="meter" class="meter"></canvas>
+        <input type="button" value="speak">
+    </div>
+</div>
+<script type="text/javascript">
+    jQuery(document).ready(function () {
+        console.log('start');
+// -------------------------------------------------------------------------------------------------
+        var opts = {
+            angle: 0.15, // The span of the gauge arc
+            lineWidth: 0.44, // The line thickness
+            radiusScale: 1, // Relative radius
+            pointer: {
+                length: 0.6, // // Relative to gauge radius
+                strokeWidth: 0.035, // The thickness
+                color: '#000000' // Fill color
+            },
+            limitMax: false,     // If false, max value increases automatically if value > maxValue
+            limitMin: false,     // If true, the min value of the gauge will be fixed
+            colorStart: '#6FADCF',   // Colors
+            colorStop: '#8FC0DA',    // just experiment with them
+            strokeColor: '#E0E0E0',  // to see which ones work best for you
+            generateGradient: true,
+            highDpiSupport: true,     // High resolution support
+            maxValue: 60,
+            staticLabels: {
+                // font: "10px sans-serif",  // Specifies font
+                labels: [0, 10, 20, 30, 40, 50],  // Print labels at these values
+                color: "#000000",  // Optional: Label text color
+                fractionDigits: 0  // Optional: Numerical precision. 0=round off.
+            },
+        };
+        var target = document.getElementById('meter'); // your canvas element
+        var gauge = new Gauge(target).setOptions(opts); // create sexy gauge!
+        // gauge.maxValue = 50; // set max gauge value
+        gauge.setMinValue(0);  // Prefer setter over gauge.minValue = 0
+        gauge.animationSpeed = 64; // set animation speed (32 is default value)
+        // gauge.set(3); // set actual value
+// -------------------------------------------------------------------------------------------------
+        const main = new Main('map', 16, gauge);
+// -------------------------------------------------------------------------------------------------
+// -------------------------------------------------------------------------------------------------
+
+        const w = jQuery(window);
+        w.on('focus', function (e) {
+            main.isWindowActive = true;
+            console.log('Active');
+        });
+        w.on('blur', function (e) {
+            main.isWindowActive = false;
+            console.log('not Active');
+        });
+
+        const startSession = function () {
+            const wsURL = 'ws://' + location.host + '/ws'
+            const ws = new ReconnectingWebSocket(wsURL);
+            let info = null;
+            ws.onmessage = function (message) {
+                const data = JSON.parse(message['data']); //console.log(data);
+                switch (data['type']) {
+                    case 'stats':
+                        info = data['info']; console.log(info);
+                        break;
+                    case 'location':
+                        info = data['info'];
+                        if (info['valid']) {
+                            console.log(info);
+                            const latlng = L.latLng([info['lat'], info['lng']]);
+                            main.map.panTo(latlng);
+                        }
+                        break;
+                    default:
+                        break;
+                }
+            }
+        }
+        startSession();
+
+    });
+</script>
+</body>
+</html>

@@ -20,8 +20,9 @@ class Record(object):
 class DBSession(Process):
     def __init__(self, *, path: str, timeout: int = 5, buffersize: int = 32):
         super().__init__()
-        self.daemon = True
+        self.daemon = False
         self.name = 'SQLite'
+        self.live: bool = True
 
         self.qp: MPQueue = MPQueue()
         self.path = pathlib.Path(path)  # path for *.db
@@ -47,7 +48,11 @@ class DBSession(Process):
                     )'
 
     def __del__(self):
+        logger.warning('DEL!')
         self.append(at=self.lastat)
+
+    def stop(self):
+        self.live = False
 
     def create(self, *, cursor: sqlite3.Cursor):
         cursor.execute(self.schema)
@@ -65,6 +70,7 @@ class DBSession(Process):
                 cursor = db.cursor()
                 if exists is False:
                     self.create(cursor=cursor)
+                    logger.debug('$$$ %s was created' % str(file))
                 for index in range(size):
                     ooo: Record = self.fifo.get()
                     item = [ooo.at.strftime(self.dateformat), passed, ooo.sentence]
@@ -79,37 +85,9 @@ class DBSession(Process):
                     '+++ %d records were saved to %s in %f after %d secs' % (size, file, round(te - ts, 2), after))
                 self.lastsave = now
 
-    # def _append(self, *, at: dt):
-    #     # logger.debug(self.fifo.qsize())
-    #     with self.locker:  # 念の為
-    #         rows = self.buffer.copy()
-    #         self.buffer.clear()
-    #         passed = (at - self.lastat).total_seconds()
-    #         name = self.nameformat % (at.year, at.month, at.day)
-    #         file = self.path / name  # pathlib
-    #         exists = file.exists()
-    #         now = dt.now()
-    #         with closing(sqlite3.connect(str(file))) as db:
-    #             ts = time.time()
-    #             cursor = db.cursor()
-    #             if exists is False:
-    #                 self.create(cursor=cursor)
-    #             for ooo in rows:
-    #                 item = [ooo.at.strftime(self.dateformat), passed, ooo.sentence]
-    #                 query = 'insert into sentence(at,ds,nmea) values(?,?,?)'
-    #                 print(item)
-    #                 cursor.execute(query, item)
-    #             cursor.close()
-    #             db.commit()  # never forget
-    #             te = time.time()
-    #             after = int((now - self.lastsave).total_seconds())
-    #             logger.debug(
-    #                 '+++ %d records were saved to %s in %f after %d secs' % (len(rows), file, round(te - ts, 2), after))
-    #             self.lastsave = now
-    #
     def run(self) -> None:
         logger.debug('DBSession start (%d)' % self.pid)
-        while True:
+        while self.live:
             try:
                 raw: bytes = self.qp.get(timeout=self.timeout)
                 self.counter += 1
@@ -117,8 +95,8 @@ class DBSession(Process):
                 self.append(at=self.lastat)
                 self.lastat = dt.now()
             except KeyboardInterrupt as e:
-                self.append(at=self.lastat)
-                break
+                self.live = False
+                pass
             else:
                 now = dt.now()
                 if now.day != self.lastat.day:
@@ -132,3 +110,5 @@ class DBSession(Process):
                     self.append(at=now)
 
                 self.lastat = now
+        self.append(at=self.lastat)
+        logger.debug('<<< Roger!')

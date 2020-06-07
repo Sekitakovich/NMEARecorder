@@ -38,7 +38,7 @@ class WebsocketServer(object):
                     del self.clients[key]
                 await ws.close()
                 if self.debug:
-                    logger.debug('%s was lost' % key)
+                    logger.warning('%s was lost' % key)
                 break
             else:
                 for k, v in self.clients.items():
@@ -54,7 +54,7 @@ class WebsocketServer(object):
         except Exception as e:
             logger.error(e)
 
-    def bc(self, *, message: str):
+    def broadcast(self, *, message: str):
         if len(self.clients) and message:
             with self.locker:
                 try:

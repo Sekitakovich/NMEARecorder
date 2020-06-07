@@ -23,27 +23,21 @@ class Receiver(Process):
         else:
             self.isReady = True
 
-    # def cook(self, *, data: bytes):
-    #     part = data.split(b'*')
-    #     main = part[0][1:]
-    #     if len(part) > 1:
-    #         csum = int(part[1][:2], 16)
-    #         calc = reduce(xor, main, 0)
-    #         if calc != csum:
-    #             logger.error('!!! bad checksum')
-
     def run(self) -> None:
         logger.debug('Receiver start (%d)' % self.pid)
-        try:
-            while self.isReady:
+        while self.isReady:
+            try:
                 data = self.sp.readline()
+            except (serial.SerialException, OSError) as e:
+                self.isReady = False
+                logger.error(e)
+            except KeyboardInterrupt as e:
+                self.isReady = False
+            else:
                 self.qp.put(data)
-                # self.cook(data=data)
-        except (serial.SerialException, OSError) as e:
-            self.isReady = False
-            logger.error(e)
-        except KeyboardInterrupt as e:
-            self.isReady = False
+
+        self.sp.close()
+        logger.debug('<<< Roger!')
 
     def __del__(self):
         if self.isReady:
