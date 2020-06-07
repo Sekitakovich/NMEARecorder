@@ -26,9 +26,19 @@ class GPS(object):
 
         self.dateformat: str = '%Y-%m-%d %H:%M:%S.%f'
 
+    def dm2deg(self, *, dm: float) -> float:  # GPRMC -> GoogleMaps
+
+        decimal, integer = math.modf(dm / 100.0)
+        value = integer + ((decimal / 60.0) * 100.0)
+
+        return value
+
     def convertLatLng(self, *, src: float) -> float:
-        val = math.modf(src / 100)
-        return val[1] + val[0] / 60
+
+        decimal, integer = math.modf(src / 100.0)
+        value = integer + ((decimal / 60.0) * 100.0)
+
+        return value
 
     def get(self, *, item: List[bytes]) -> Location:
         try:

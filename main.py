@@ -27,12 +27,13 @@ class Main(responder.API):
 
         super().__init__()
         pid = os.getpid()
+        logger.info('*** NMEA Recorder startup (%d)' % pid)
+
         self.process: Dict[str, int] = {}
         self.process['main'] = pid
+
         self.ppp: Dict[str, Patrol] = {}
         self.ppp['main'] = Patrol(pid=pid)
-
-        logger.info('*** NMEA Recorder startup (%d)' % pid)
 
         self.ready: bool = True
         self.g = GPS()
@@ -68,7 +69,7 @@ class Main(responder.API):
         self.add_route('/main.js', self.mainJS)
         self.add_route('/classes.js', self.classes)
 
-        self.add_event_handler('shutdown', self.cleanup)
+        self.add_event_handler('shutdown', self.cleanup)  # notice!
         self.run(address='0.0.0.0', port=http)
 
     async def cleanup(self):

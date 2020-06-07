@@ -76,16 +76,16 @@
             generateGradient: true,
             highDpiSupport: true,     // High resolution support
             maxValue: 60,
-            staticLabels: {
-                // font: "10px sans-serif",  // Specifies font
-                labels: [0, 10, 20, 30, 40, 50],  // Print labels at these values
-                color: "#000000",  // Optional: Label text color
-                fractionDigits: 0  // Optional: Numerical precision. 0=round off.
-            },
+            // staticLabels: {
+            //     // font: "10px sans-serif",  // Specifies font
+            //     labels: [0, 10, 20, 30, 40, 50],  // Print labels at these values
+            //     color: "#000000",  // Optional: Label text color
+            //     fractionDigits: 0  // Optional: Numerical precision. 0=round off.
+            // },
         };
         var target = document.getElementById('meter'); // your canvas element
         var gauge = new Gauge(target).setOptions(opts); // create sexy gauge!
-        // gauge.maxValue = 50; // set max gauge value
+        gauge.maxValue = 10; // set max gauge value
         gauge.setMinValue(0);  // Prefer setter over gauge.minValue = 0
         gauge.animationSpeed = 64; // set animation speed (32 is default value)
         // gauge.set(3); // set actual value
@@ -108,11 +108,14 @@
             const wsURL = 'ws://' + location.host + '/ws'
             const ws = new ReconnectingWebSocket(wsURL);
             let info = null;
+            let val = 0.0;
             ws.onmessage = function (message) {
                 const data = JSON.parse(message['data']); //console.log(data);
                 switch (data['type']) {
                     case 'stats':
                         info = data['info']; console.log(info);
+                        val = parseFloat(info['main']['cpuPercent']);
+                        gauge.set(val); console.log(val);
                         break;
                     case 'location':
                         info = data['info'];
