@@ -7,7 +7,6 @@ from multiprocessing import Queue
 import responder
 from threading import Thread
 import os
-import psutil
 from dataclasses import dataclass, asdict
 import json
 from functools import reduce
@@ -18,28 +17,7 @@ from dbsession import DBSession
 from mc import fromUDP
 from websocketServer import WebsocketServer
 from gps import GPS
-
-
-@dataclass()
-class Stats(object):
-    cpuPercent: float = 0.0
-    memPercent: float = 0.0
-
-
-class Patrol(Thread):
-    def __init__(self, *, pid: int, interval: float = 5):
-        super().__init__()
-        self.daemon = True
-        self.p = psutil.Process(pid=pid)
-        self.interval = interval
-
-        self.stats = Stats()
-
-    def run(self) -> None:
-        while True:
-            self.stats.cpuPercent = self.p.cpu_percent(interval=self.interval / 2)
-            self.stats.memPercent = self.p.memory_percent()
-            time.sleep(self.interval)
+from patrol import Patrol
 
 
 class Main(responder.API):
@@ -114,7 +92,8 @@ class Main(responder.API):
                             if prefix == b'GP':
                                 if suffix == b'RMC':
                                     location = self.g.get(item=item)
-                                    print(location)
+                                    if location.valid:
+                                        print(location)
 
         except KeyboardInterrupt as e:
             loop = False
@@ -139,7 +118,7 @@ if __name__ == '__main__':
 
     portDefault: str = '/dev/ttyACM0:9600'
     toDefault: int = 5
-    bsDefault: int = 32
+    bsDefault: int = 100
 
     parser = argparse.ArgumentParser()
     parser.add_argument('-p', '--port', help='name:baudrate of port', default=portDefault)
